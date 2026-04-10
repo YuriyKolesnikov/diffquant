@@ -140,6 +140,8 @@ python compare.py
 ---
 
 ## Structure
+
+```
 diffquant/
 ├── configs/
 │   ├── base_config.py          # MasterConfig — single source of all hyperparameters
@@ -178,6 +180,7 @@ diffquant/
 ├── optimize.py                 # Optuna hyperparameter search
 ├── optimize_thresholds.py      # Optuna Finding the best thresholds on the VAL dataset
 └── compare.py                  # Experiment comparison table
+```
 
 ---
 
