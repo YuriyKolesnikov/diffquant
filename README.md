@@ -36,9 +36,10 @@ through a differentiable mark-to-market simulator to the Sharpe ratio — is a
 single computation graph. `loss.backward()` optimises what the strategy
 actually earns, not a surrogate for it.
 
-📄 **Research article (English · Medium):**
+**Research article (English · Medium):**
 [DiffQuant: Closing the Proxy Gap — Direct Sharpe Optimisation for Algorithmic Trading](article scheduled for release)
-📄 **Статья (Русский · Habr):**
+
+**Статья (Русский · Habr):**
 [DiffQuant: прямая оптимизация коэффициента Шарпа вместо предсказания цен](статья готовится к публикации)
 ---
 
