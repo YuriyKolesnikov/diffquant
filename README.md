@@ -53,10 +53,12 @@ features[t−ctx:t] → PolicyNetwork → position_t → DiffSimulator → −Sh
 
 The simulator implements exact mark-to-market accounting as tensor operations —
 no surrogate losses, no reward shaping. The entire chain is differentiable:
-> ret_t      = (close_t − close_{t−1}) / close_{t−1}
-> gross_t    = position_{t−1} × ret_t
-> cost_t     = smooth_abs(Δpos_t) × (commission + slippage)
-> net_pnl_t  = gross_t − cost_t
+```
+ret_t      = (close_t − close_{t−1}) / close_{t−1}
+gross_t    = position_{t−1} × ret_t
+cost_t     = smooth_abs(Δpos_t) × (commission + slippage)
+net_pnl_t  = gross_t − cost_t
+```
 
 `smooth_abs(x) = √(x² + ε)` replaces `|x|` to preserve C∞ differentiability
 through transaction cost computation — critical when the model is near-flat.
