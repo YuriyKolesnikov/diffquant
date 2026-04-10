@@ -38,11 +38,11 @@ actually earns, not a surrogate for it.
 
 <p>
 <strong>Research article (English · Medium):</strong><br>
-<a href="article scheduled for release">DiffQuant: Closing the Proxy Gap — Direct Sharpe Optimisation for Algorithmic Trading</a>
+<a href="#">DiffQuant: Closing the Proxy Gap — Direct Sharpe Optimisation for Algorithmic Trading</a>
 </p>
 <p>
 <strong>Статья (Русский · Habr):</strong><br>
-<a href="статья готовится к публикации">DiffQuant: прямая оптимизация коэффициента Шарпа вместо предсказания цен</a>
+<a href="#">DiffQuant: прямая оптимизация коэффициента Шарпа вместо предсказания цен</a>
 </p>
 ---
 
@@ -53,10 +53,10 @@ features[t−ctx:t] → PolicyNetwork → position_t → DiffSimulator → −Sh
 
 The simulator implements exact mark-to-market accounting as tensor operations —
 no surrogate losses, no reward shaping. The entire chain is differentiable:
-ret_t      = (close_t − close_{t−1}) / close_{t−1}
-gross_t    = position_{t−1} × ret_t
-cost_t     = smooth_abs(Δpos_t) × (commission + slippage)
-net_pnl_t  = gross_t − cost_t
+> ret_t      = (close_t − close_{t−1}) / close_{t−1}
+> gross_t    = position_{t−1} × ret_t
+> cost_t     = smooth_abs(Δpos_t) × (commission + slippage)
+> net_pnl_t  = gross_t − cost_t
 
 `smooth_abs(x) = √(x² + ε)` replaces `|x|` to preserve C∞ differentiability
 through transaction cost computation — critical when the model is near-flat.
@@ -72,12 +72,14 @@ This is the differentiable analogue of action masking. Gate bias is initialised 
 
 ### Training objective
 ```python
-L = λ₁·(−Sharpe) + λ₂·turnover + λ₃·drawdown + λ₄·terminal_position
+L = λ₁·(−Sharpe) + λ₂·turnover + λ₃·drawdown + λ₄·terminal + λ₅·(flat_soft − flat_target)² + λ₆·|mean(pos)|
 ```
 
-Each penalty term addresses a specific failure mode of pure Sharpe optimisation:
-turnover prevents commission drag, drawdown discourages extended underwater
-periods, terminal penalises carrying open risk into the next window.
+Each term addresses a specific failure mode: `turnover` prevents commission drag;
+`drawdown` discourages extended underwater periods; `terminal` penalises open
+risk at episode end; `flat_target` prevents permanent flat collapse; `bias`
+penalises always-long or always-short behaviour — proved critical for symmetric
+long/short learning on trending BTC training data.
 
 ---
 
@@ -110,11 +112,6 @@ huggingface-cli download ResearchRL/diffquant-data --local-dir data_source/ --re
 
 # Verify gradient flow and trend learning before training
 python sanity_check.py --config configs/experiments/itransformer_hybrid.py
-# Expected output:
-#   PASS  gradient_flow    all params receive gradient
-#   PASS  long_bias        mean_position=+0.19  expected_sign=+
-#   PASS  short_bias       mean_position=-0.16  expected_sign=-
-#   ALL PASSED
 # Expected output:
 #   PASS  gradient_flow    all params receive gradient
 #   PASS  long_bias        mean_position=+0.19  expected_sign=+
@@ -206,12 +203,14 @@ Any performance difference is attributable to the architecture or loss alone.
 from configs.base_config import MasterConfig
 
 cfg = MasterConfig(experiment_name="itransformer_hybrid")
-cfg.backbone.type          = "itransformer"
-cfg.loss.type              = "hybrid"
-cfg.loss.lambda_turnover   = 0.01
-cfg.data.preset            = "ohlcv"       # open, high, low, close, volume
-cfg.data.add_time_features = True           # sin/cos hour + sin/cos day-of-week
-cfg.data.timeframe_min     = 5             # aggregate 1-min source to 5-min bars
+cfg.backbone.type           = "itransformer"
+cfg.loss.type               = "hybrid"
+cfg.loss.lambda_turnover    = 0.01
+cfg.loss.lambda_bias        = 0.25          # penalises always-long / always-short
+cfg.loss.lambda_flat_target = 0.5           # prevents permanent flat collapse
+cfg.data.preset             = "ohlcv"       # open, high, low, close, volume
+cfg.data.add_rolling_vol    = True          # causal rolling volatility channel
+cfg.data.timeframe_min      = 30            # aggregate 1-min source to 30-min bars
 
 ```
 
@@ -239,7 +238,7 @@ Temporal splits (all non-overlapping):
 
 Aggregation from 1-min to any target timeframe uses `origin="epoch"` alignment,
 ensuring bars always land on clock boundaries (:00, :05, :10, … for 5-min).
-Context window at 5-min resolution: 96 bars (8 hours). Horizon: 24 bars (2 hours).
+Primary experiment uses 30-min bars: context = 96 bars (48 hours), horizon = 24 bars (12 hours).
 
 ---
 
@@ -381,7 +380,7 @@ Multi-asset portfolio construction requires architectural extension.
 uniformly. For positions large enough to move price, enable `market_impact_eta`
 in `SimulatorConfig` (quadratic Almgren-Chriss term).
 
-**Intraday only.** Context window is 8 hours; horizon is 2 hours. The pipeline
+**Intraday only.** Context window is 48 hours; horizon is 12 hours. The pipeline
 is not designed for multi-day holding periods or overnight risk.
 
 **Research framework.** There is no live execution layer. Connecting to a broker
