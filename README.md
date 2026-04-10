@@ -38,7 +38,6 @@ actually earns, not a surrogate for it.
 
 📄 **Research article (English · Medium):**
 [DiffQuant: Closing the Proxy Gap — Direct Sharpe Optimisation for Algorithmic Trading](article scheduled for release)
-
 📄 **Статья (Русский · Habr):**
 [DiffQuant: прямая оптимизация коэффициента Шарпа вместо предсказания цен](статья готовится к публикации)
 ---
