@@ -382,9 +382,6 @@ Multi-asset portfolio construction requires architectural extension.
 uniformly. For positions large enough to move price, enable `market_impact_eta`
 in `SimulatorConfig` (quadratic Almgren-Chriss term).
 
-**Intraday only.** Context window is 48 hours; horizon is 12 hours. The pipeline
-is not designed for multi-day holding periods or overnight risk.
-
 **Research framework.** There is no live execution layer. Connecting to a broker
 API requires additional engineering outside the scope of this project.
 
