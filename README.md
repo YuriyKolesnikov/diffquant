@@ -42,7 +42,7 @@ actually earns, not a surrogate for it.
 </p>
 <p>
 <strong>Статья (Русский · Habr):</strong><br>
-<a href="#">DiffQuant: прямая оптимизация коэффициента Шарпа вместо предсказания цен</a>
+<a href="https://habr.com/ru/articles/1022254/">DiffQuant: прямая оптимизация коэффициента Шарпа через дифференцируемый торговый симулятор</a>
 </p>
 ---
 
@@ -228,6 +228,8 @@ Feature presets: `"ohlc"` | `"ohlcv"` (default) | `"full"` | `"custom"`.
 | Source resolution | 1-minute bars (close-time convention) |
 | HuggingFace | [`ResearchRL/diffquant-data`](https://huggingface.co/datasets/ResearchRL/diffquant-data) |
 | Period | 2021-01-01 — 2025-12-31 |
+
+Dataset: [HuggingFace Hub](https://huggingface.co/datasets/ResearchRL/diffquant-data)
 
 Temporal splits (all non-overlapping):
 
