@@ -38,7 +38,7 @@ actually earns, not a surrogate for it.
 
 <p>
 <strong>Research article (English · Medium):</strong><br>
-<a href="#">DiffQuant: Closing the Proxy Gap — Direct Sharpe Optimisation for Algorithmic Trading</a>
+<a href="https://medium.com/@YuriKolesnikovAI/diffquant-end-to-end-sharpe-optimization-through-a-differentiable-trading-simulator-a64d428f0fd4">DiffQuant: End-to-End Sharpe Optimization Through a Differentiable Trading Simulator</a>
 </p>
 <p>
 <strong>Статья (Русский · Habr):</strong><br>
