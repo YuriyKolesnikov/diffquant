@@ -26,15 +26,9 @@
 
 ---
 
-Every ML trading system faces the same structural gap: the model optimises a
-proxy — MSE, cross-entropy, TD-error — while performance is measured in
-realised PnL. The better the proxy fits, the less it guarantees about actual
-returns.
+Most ML trading systems face the same structural gap: the model optimizes a proxy — MSE, cross-entropy, TD-error — while performance is measured in realized PnL. A better-fitting proxy does not guarantee better actual returns.
 
-DiffQuant closes this gap by design. The pipeline — from raw market features
-through a differentiable mark-to-market simulator to the Sharpe ratio — is a
-single computation graph. `loss.backward()` optimises what the strategy
-actually earns, not a surrogate for it.
+DiffQuant closes this gap by design. The pipeline from raw market features through a differentiable mark-to-market simulator to the Sharpe ratio is a single computation graph. `loss.backward()` optimizes what the strategy actually earns, not a surrogate for it.
 
 <p>
 <strong>Research article (English · Medium):</strong><br>
@@ -44,15 +38,19 @@ actually earns, not a surrogate for it.
 <strong>Статья (Русский · Habr):</strong><br>
 <a href="https://habr.com/ru/articles/1022254/">DiffQuant: прямая оптимизация коэффициента Шарпа через дифференцируемый торговый симулятор</a>
 </p>
+
 ---
 
 ## How it works
 
 The full pipeline is a single differentiable computation graph:
-features[t−ctx:t] → PolicyNetwork → position_t → DiffSimulator → −Sharpe → ∂/∂θ
 
-The simulator implements exact mark-to-market accounting as tensor operations —
-no surrogate losses, no reward shaping. The entire chain is differentiable:
+```
+features[t−ctx:t] → PolicyNetwork → position_t → DiffSimulator → −Sharpe → ∂/∂θ
+```
+
+The simulator implements exact mark-to-market accounting as tensor operations — no surrogate losses, no reward shaping. The entire chain is differentiable:
+
 ```
 ret_t      = (close_t − close_{t−1}) / close_{t−1}
 gross_t    = position_{t−1} × ret_t
@@ -60,35 +58,30 @@ cost_t     = smooth_abs(Δpos_t) × (commission + slippage)
 net_pnl_t  = gross_t − cost_t
 ```
 
-`smooth_abs(x) = √(x² + ε)` replaces `|x|` to preserve C∞ differentiability
-through transaction cost computation — critical when the model is near-flat.
+`smooth_abs(x) = √(x² + ε)` replaces `|x|` to preserve C∞ differentiability through transaction cost computation — critical when the model operates near flat.
 
 ### Policy head: direction × gate
+
 ```python
 position = tanh(direction_raw / τ_dir) × sigmoid(gate_raw / τ_gate)
 ```
 
-`direction` encodes the alpha signal; `gate` encodes whether to trade at all.
-When confidence is low, `gate → 0` and `position → 0` regardless of direction.
-This is the differentiable analogue of action masking. Gate bias is initialised to −1.0, ensuring the model starts in a cautious near-flat regime and only opens positions when accumulated gradient evidence justifies the exposure. This stabilises the early training phase when policy outputs are noisy.
+`direction` encodes the alpha signal; `gate` encodes whether to trade at all. When confidence is low, `gate → 0` and `position → 0` regardless of direction — the differentiable analogue of action masking. Gate bias is initialized to −1.0, so the model starts in a near-flat regime and opens positions only when accumulated gradient evidence justifies the exposure. This stabilizes early training when policy outputs are noisy.
 
 ### Training objective
+
 ```python
 L = λ₁·(−Sharpe) + λ₂·turnover + λ₃·drawdown + λ₄·terminal + λ₅·(flat_soft − flat_target)² + λ₆·|mean(pos)|
 ```
 
-Each term addresses a specific failure mode: `turnover` prevents commission drag;
-`drawdown` discourages extended underwater periods; `terminal` penalises open
-risk at episode end; `flat_target` prevents permanent flat collapse; `bias`
-penalises always-long or always-short behaviour — proved critical for symmetric
-long/short learning on trending BTC training data.
+Each term addresses a specific failure mode: `turnover` prevents commission drag; `drawdown` discourages extended underwater periods; `terminal` penalizes open risk at episode end; `flat_target` prevents permanent flat collapse; `bias` penalizes always-long or always-short behavior, which proved critical for symmetric long/short learning on trending BTC training data.
 
 ---
 
 ## Validation protocol
 
-Both training validation and backtest use continuous walk-forward evaluation —
-the same mechanics as live execution:
+Both training validation and backtest use continuous walk-forward evaluation, identical to live execution mechanics:
+
 ```python
 for t in range(ctx_len, N):
     window   = features[t − ctx : t]       # past ctx bars only
@@ -97,13 +90,12 @@ for t in range(ctx_len, N):
     # position carried to next bar — no resets
 ```
 
-The same `WalkForwardEvaluator` runs during training (every `val_freq` epochs)
-and at final evaluation. There is no separate validation logic anywhere else
-in the codebase — this is intentional.
+The same `WalkForwardEvaluator` runs during training (every `val_freq` epochs) and at final evaluation. There is no separate validation logic anywhere else in the codebase. This is intentional.
 
 ---
 
 ## Quick start
+
 ```bash
 git clone https://github.com/YuriyKolesnikov/diffquant
 cd diffquant
@@ -123,16 +115,16 @@ python sanity_check.py --config configs/experiments/itransformer_hybrid.py
 # Train primary experiment
 python train.py --config configs/experiments/itransformer_hybrid.py --device cuda
 
-# Finding the best thresholds on the VAL dataset
+# Optional: find optimal thresholds on the val set
 python optimize_thresholds.py --config configs/experiments/itransformer_hybrid.py --trials 100 --objective sharpe
 
 # Evaluate on held-out test and backtest splits
 python evaluate.py --config configs/experiments/itransformer_hybrid.py
 
-# Evaluate on held-out test and backtest splits + final model
+# Evaluate with final model checkpoint
 python evaluate.py --config configs/experiments/itransformer_hybrid.py --checkpoint output/itransformer_hybrid/models/final.pth
 
-# Optuna — hyperparameter search in debug config
+# Hyperparameter search
 python optimize.py --config configs/experiments/itransformer_hybrid.py --trials 100
 
 # Compare all completed experiments
@@ -180,7 +172,7 @@ diffquant/
 ├── evaluate.py
 ├── sanity_check.py
 ├── optimize.py                 # Optuna hyperparameter search
-├── optimize_thresholds.py      # Optuna Finding the best thresholds on the VAL dataset
+├── optimize_thresholds.py      # Optuna threshold selection on val
 └── compare.py                  # Experiment comparison table
 ```
 
@@ -194,12 +186,12 @@ diffquant/
 | `itransformer_hybrid` | iTransformer | Hybrid | **Primary experiment** |
 | `lstm_hybrid` | LSTM (bidir.) | Hybrid | Backbone comparison |
 
-The three configs share the same data, simulator, and evaluation protocol.
-Any performance difference is attributable to the architecture or loss alone.
+The three configs share the same data, simulator, and evaluation protocol. Any performance difference is attributable to architecture or loss function alone.
 
 ---
 
 ## Configuration
+
 ```python
 # Minimal override example
 from configs.base_config import MasterConfig
@@ -213,7 +205,6 @@ cfg.loss.lambda_flat_target = 0.5           # prevents permanent flat collapse
 cfg.data.preset             = "ohlcv"       # open, high, low, close, volume
 cfg.data.add_rolling_vol    = True          # causal rolling volatility channel
 cfg.data.timeframe_min      = 30            # aggregate 1-min source to 30-min bars
-
 ```
 
 Feature presets: `"ohlc"` | `"ohlcv"` (default) | `"full"` | `"custom"`.
@@ -235,25 +226,20 @@ Temporal splits (all non-overlapping):
 
 | Split | Period | Purpose |
 |---|---|---|
-| Train    | 2021-01-01 → 2025-03-31 | Gradient updates |
+| Train    | 2024-01-01 → 2025-03-31 | Gradient updates |
 | Val      | 2025-04-01 → 2025-06-30 | Model selection during training |
 | Test     | 2025-07-01 → 2025-09-30 | Out-of-sample evaluation |
 | Backtest | 2025-10-01 → 2025-12-31 | Final held-out evaluation |
 
-Aggregation from 1-min to any target timeframe uses `origin="epoch"` alignment,
-ensuring bars always land on clock boundaries (:00, :05, :10, … for 5-min).
-Primary experiment uses 30-min bars: context = 96 bars (48 hours), horizon = 24 bars (12 hours).
+Aggregation from 1-min to any target timeframe uses `origin="epoch"` alignment, ensuring bars always land on clock boundaries (:00, :05, :10, … for 5-min). The primary experiment uses 30-min bars: context = 96 bars (48 hours), horizon = 24 bars (12 hours).
+
+The training window is intentionally limited to 15 months (January 2024 – March 2025) rather than the full historical record. This keeps the training regime temporally close to the evaluation periods and minimises distribution shift. Extending to earlier data is straightforward via `SplitConfig.train_start` and is the recommended first ablation.
 
 ---
 
 ## Experimental status
 
-DiffQuant is an active research project. The results below represent the first
-promising configuration found during initial experimentation. The pipeline is
-**highly sensitive to hyperparameters** — loss weights, learning rate, training
-window, and data features all interact non-trivially. Results will vary across
-configurations and market regimes. Reproducing or improving them requires
-systematic experimentation, which the codebase is designed to support.
+DiffQuant is an active research project. The results below represent the first promising configuration found during initial experimentation. The pipeline is hyperparameter-sensitive — loss weights, learning rate, training window, and feature composition interact non-trivially. Results vary across configurations and market regimes. The codebase is designed to support systematic reproduction and further experimentation.
 
 This is research, not a production-ready system.
 
@@ -270,25 +256,20 @@ This is research, not a production-ready system.
 - Loss: Hybrid (Sharpe + drawdown + flat_target + bias)
 - Training: 30 epochs, lr=1e-3, mirror_augmentation=True
 
-**Why small model, short window, and non-overlapping samples:**
-910 samples is intentionally small. With `stride=horizon_len=24` (non-overlapping
-episodes), each training sample covers a distinct 12-hour market window, preventing
-the model from memorising sequential price paths. A 52K-parameter model on 910
-samples is deliberately capacity-constrained to resist microstructure noise.
-
-The 15-month training window (Jan 2024 – Mar 2025) keeps the training regime
-temporally close to the evaluation periods, reducing distribution shift. Extending
-to earlier data is straightforward via `SplitConfig.train_start` and is the
-recommended first ablation step.
+**Why a small model and non-overlapping samples:**
+910 training samples is intentionally small. With `stride=horizon_len=24`, each sample covers a distinct 12-hour market window with no overlap, preventing the model from memorizing sequential price paths. A 52K-parameter model on 910 independent episodes is deliberately capacity-constrained to resist microstructure noise.
 
 ### Training dynamics
 
 | Epoch | Val Sharpe | Val Return | Flat% | Turnover/bar |
 |---|---|---|---|---|
-| 2 | −6.49 | −14.1% | 1.6% | 0.0335 |
-| 10 | −0.72 | −1.1% | 56.8% | 0.0002 |
-| 20 | +1.21 | +5.2% | 15.4% | 0.0101 |
+| 2  | −6.49 | −14.1% | 1.6%  | 0.0335 |
+| 8  | −0.64 | −0.4%  | 77.5% | 0.0003 |
+| 12 | +0.46 | +0.9%  | 17.7% | 0.0035 |
+| 20 | +1.21 | +5.2%  | 15.4% | 0.0101 |
 | 30 | **+1.25** | +5.8% | 13.2% | 0.0135 |
+
+Training passes through two sequential failure modes before settling into a workable regime: hyperactivity at epoch 2 (turnover = 0.0335, val Sharpe = −6.49), followed by flat collapse at epoch 8 (flat fraction = 77.5%). The hybrid loss resolves both. Best checkpoint saved at epoch 30, with val Sharpe still improving at run end, consistent with the hypothesis that the model had not yet fully converged.
 
 <p align="center">
   <img src="plots/train_loss.png" width="48%" alt="Train Loss"/>
@@ -300,13 +281,9 @@ recommended first ablation step.
   <img src="plots/val_max_drawdown.png" width="48%" alt="Val Max Drawdown"/>
 </p>
 
-Best checkpoint saved at epoch 30 — val Sharpe still improving at run end,
-indicating the model had not yet converged.
-
 ### Walk-forward evaluation
 
-All evaluation uses the continuous walk-forward protocol — identical to
-live execution mechanics. No look-ahead, no episode resets.
+All evaluation uses the continuous walk-forward protocol, identical to live execution mechanics. No look-ahead, no episode resets.
 
 **Test — July–September 2025 (3 months, out-of-sample)**
 
@@ -349,75 +326,46 @@ live execution mechanics. No look-ahead, no episode resets.
 
 ### Key observations
 
-**Positive Sharpe on both held-out periods.** Test (+1.73) and backtest (+1.15)
-are both positive — this is the primary result. A single positive out-of-sample
-period can be coincidence; consistency across two non-overlapping quarters
-is a stronger signal.
+**Positive Sharpe on both held-out periods.** Test (+1.73) and backtest (+1.15) are both positive. A single positive out-of-sample quarter can be coincidence; consistency across two non-overlapping quarters is a stronger signal.
 
-**Asymmetric learning from symmetric data.** The model was trained exclusively
-on Jan 2024 – Mar 2025 data — a predominantly bullish period for BTC.
-With `mirror_augmentation=True`, the training loop augments 50% of batches by
-inverting price returns, forcing the model to learn symmetric long/short behaviour.
-The result: 17–21% short exposure in evaluation, despite the long-biased training
-regime. Without augmentation, all previous experiments produced `short_fraction=0`.
+**Asymmetric learning from asymmetric data.** The model was trained exclusively on Jan 2024 – Mar 2025, a predominantly bullish period for BTC. With `mirror_augmentation=True`, the training loop augments 50% of batches by inverting price returns, forcing symmetric long/short learning. Result: 17–21% short exposure in evaluation despite the long-biased training regime. Without augmentation, most prior configurations produced `short_fraction` close to zero.
 
-**Direction accuracy near 50%.** Long correct: 50.1–51.2%, short correct: 48.8–52.6%.
-The model's edge does not come from directional prediction accuracy but from
-**asymmetric sizing** — `correct_avg_ret` (+0.065%) systematically exceeds
-`incorrect_avg_ret` (−0.061%) in magnitude. The gate mechanism selectively
-suppresses low-confidence trades, improving the signal-to-noise ratio of
-executed positions.
+**Direction accuracy near 50% — and that is not a weakness.** Long correct: 50.1–51.2%, short correct: 48.8–52.6%. The model's edge does not come from directional prediction accuracy but from asymmetric sizing: `correct_avg_ret` (+0.065%) systematically exceeds `incorrect_avg_ret` (−0.061%) in magnitude. The gate mechanism selectively suppresses low-confidence trades, improving the signal-to-noise ratio of executed positions.
 
-**Gate activation remains low.** Mean gate ≈ 0.12–0.13. The model spends the
-majority of its time at partial exposure rather than full commitment. This is
-consistent with a conservative risk posture driven by `lambda_bias` and
-`flat_target` regularisation.
+**Gate activation remains low.** Mean gate ≈ 0.12–0.13. The model operates at partial exposure rather than full commitment, consistent with the conservative risk posture driven by `lambda_bias` and `flat_target` regularization.
 
 ---
 
 ## Limitations
 
-**Single asset.** The pipeline trains one model per instrument.
-Multi-asset portfolio construction requires architectural extension.
+**Single asset.** The pipeline trains one model per instrument. Multi-asset portfolio construction requires architectural extension.
 
-**Flat commission model.** Costs are `commission_rate + slippage_rate` applied
-uniformly. For positions large enough to move price, enable `market_impact_eta`
-in `SimulatorConfig` (quadratic Almgren-Chriss term).
+**Flat commission model.** Costs are `commission_rate + slippage_rate` applied uniformly. For positions large enough to move price, enable `market_impact_eta` in `SimulatorConfig` (quadratic Almgren-Chriss term).
 
-**Research framework.** There is no live execution layer. Connecting to a broker
-API requires additional engineering outside the scope of this project.
+**Hyperparameter sensitivity.** Loss weights, training window, feature composition, and learning rate interact non-trivially. This is not a plug-and-play recipe. It is a research framework that requires systematic tuning.
+
+**Limited statistical base.** Two quarters is sufficient for a meaningful signal, but not for strong claims about statistical significance or long-term stability.
+
+**No live execution layer.** There is no broker-facing execution module. Connecting to an exchange API requires additional engineering outside the current scope.
 
 ---
 
 ## Roadmap
 
-The following directions are planned for future development, roughly in order
-of research priority:
-
 **Multi-asset portfolio extension.**
-The current architecture optimises a single instrument. Extending to a portfolio
-requires a cross-asset attention layer and a portfolio-level Sharpe objective
-that accounts for correlation between positions. The differentiable simulator
-generalises naturally: `gross_t = Σ weights_{i,t-1} × ret_{i,t}`.
+The current architecture optimizes a single position. Extending to a portfolio requires a cross-asset attention layer and a portfolio-level Sharpe objective that accounts for position correlations. The differentiable simulator generalizes naturally: `gross_t = Σ weights_{i,t-1} × ret_{i,t}`.
 
 **Richer loss functions.**
-The hybrid loss is still a first approximation. Planned extensions include
-Calmar-based objectives, conditional drawdown penalties, and regime-aware
-loss weighting that adjusts λ values based on detected volatility regime.
+The hybrid loss is a first approximation. Planned extensions include Calmar-based objectives, conditional drawdown penalties, and regime-aware loss weighting that adjusts λ values based on detected volatility regime.
 
 **Additional backbones.**
-The LSTM encoder is implemented but not yet benchmarked against iTransformer
-under identical conditions. Planned ablations include PatchTST, Mamba, and
-linear attention variants.
+The LSTM encoder is implemented but not yet benchmarked against iTransformer under identical conditions. Planned ablations include PatchTST, Mamba, and linear attention variants.
 
 **Online data pipeline.**
-A scheduled data collection layer (Binance WebSocket → local store → feature
-pipeline → model inference) to support paper trading and live monitoring.
+A scheduled data collection layer (Binance WebSocket → local store → feature pipeline → model inference) to support paper trading and live monitoring.
 
 **Execution and risk layer.**
-A broker-facing execution module with position sizing, stop-loss enforcement,
-and exchange connectivity. This is the final step before any live deployment
-and is outside the current research scope.
+A broker-facing execution module with position sizing, stop-loss enforcement, and exchange connectivity. This is the final engineering step before any live deployment and is outside the current research scope.
 
 ---
 
@@ -426,35 +374,27 @@ and is outside the current research scope.
 **Buehler, H., Gonon, L., Teichmann, J., Wood, B. (2019).
 [Deep Hedging.](https://arxiv.org/abs/1802.03042)
 *Quantitative Finance*, 19(8), 1271–1291.**
-The foundational framework for training neural network policies end-to-end
-through a differentiable financial objective. DiffQuant adapts this paradigm
-from derivatives hedging to directional alpha generation.
+The foundational framework for training neural network policies end-to-end through a differentiable financial objective. DiffQuant adapts this paradigm from derivatives hedging to directional alpha generation.
 
 **Liu, Y., Hu, T., Zhang, H., Wu, H., Wang, S., Ma, L., Long, M. (2024).
 [iTransformer: Inverted Transformers Are Effective for Time Series Forecasting.](https://arxiv.org/abs/2310.06625)
 *ICLR 2024 Spotlight.***
-The backbone used in the primary DiffQuant experiment. Treats each feature
-channel as a token — capturing cross-variable dependencies rather than
-local temporal patterns.
+The backbone used in the primary DiffQuant experiment. Treats each feature channel as a token, capturing cross-variable dependencies rather than local temporal patterns.
 
 **Moody, J., Saffell, M. (2001).
 [Learning to trade via direct reinforcement.](https://ieeexplore.ieee.org/document/935097)
 *IEEE Transactions on Neural Networks*, 12(4), 875–889.**
-The original formulation of direct PnL optimisation as a training objective,
-predating the deep learning era. DiffQuant extends this to a fully
-differentiable end-to-end pipeline with modern architectures.
+The original formulation of direct PnL optimization as a training objective, predating the deep learning era. DiffQuant extends this to a fully differentiable end-to-end pipeline with modern architectures.
 
 **Khubiev, K., Semenov, M., Podlipnova, I., Khubieva, D. (2026).
 [Finance-Grounded Optimization For Algorithmic Trading.](https://arxiv.org/abs/2509.04541)
 *arXiv:2509.04541.***
-The closest parallel work: introduces Sharpe, PnL, and MaxDD as training
-loss functions for return prediction. DiffQuant differs by coupling the
-loss to a fully differentiable simulator — gradient flows through
-the trading mechanics, not just through a prediction head.
+The closest parallel work: introduces Sharpe, PnL, and MaxDD as training loss functions for return prediction. DiffQuant differs by coupling the loss to a fully differentiable simulator, so gradient flows through the trading mechanics, not just through a prediction head.
 
 ---
 
 ## Citation
+
 ```bibtex
 @software{Kolesnikov2026diffquant,
   author  = {Kolesnikov, Yuriy},
